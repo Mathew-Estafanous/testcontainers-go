@@ -264,18 +264,11 @@ func newReaper(ctx context.Context, sessionID string, provider ReaperProvider) (
 			// meantime and therefore cannot be found.
 			const timeout = 5 * time.Second
 			const cooldown = 100 * time.Millisecond
-			start := time.Now()
 			var reaperContainer *DockerContainer
-			for time.Since(start) < timeout {
+			retryUntilTimeout(ctx, timeout, cooldown, func() bool {
 				reaperContainer, err = lookUpReaperContainer(ctx, sessionID)
-				if err == nil && reaperContainer != nil {
-					break
-				}
-				select {
-				case <-ctx.Done():
-				case <-time.After(cooldown):
-				}
-			}
+				return err == nil && reaperContainer != nil
+			})
 			if err != nil {
 				return nil, fmt.Errorf("look up reaper container due to name conflict failed: %w", err)
 			}
@@ -287,7 +280,11 @@ func newReaper(ctx context.Context, sessionID string, provider ReaperProvider) (
 				return nil, fmt.Errorf("look up reaper container returned nil although creation failed due to name conflict")
 			}
 			Logger.Printf("🔥 Reaper obtained from Docker for this test session %s", reaperContainer.ID)
-			reaper, err := reuseReaperContainer(ctx, sessionID, provider, reaperContainer)
+			var reaper *Reaper
+			retryUntilTimeout(ctx, timeout, cooldown, func() bool {
+				reaper, err = reuseReaperContainer(ctx, sessionID, provider, reaperContainer)
+				return err == nil
+			})
 			if err != nil {
 				return nil, err
 			}
@@ -304,6 +301,19 @@ func newReaper(ctx context.Context, sessionID string, provider ReaperProvider) (
 	reaper.Endpoint = endpoint
 
 	return reaper, nil
+}
+
+func retryUntilTimeout(ctx context.Context, timeout, cooldown time.Duration, fn func() bool) {
+	start := time.Now()
+	for time.Since(start) < timeout {
+		if shouldBreak := fn(); shouldBreak {
+			break
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(cooldown):
+		}
+	}
 }
 
 // Reaper is used to start a sidecar container that cleans up resources
