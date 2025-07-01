@@ -3,6 +3,7 @@ package grafanalgtm
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/log"
@@ -66,6 +67,15 @@ func WithAdminCredentials(user, password string) testcontainers.ContainerCustomi
 		"GF_SECURITY_ADMIN_USER":     user,
 		"GF_SECURITY_ADMIN_PASSWORD": password,
 	})
+}
+
+// WithStartupTimeout sets the startup wait timeout for the Grafana LTM container
+func WithStartupTimeout(timeout time.Duration) testcontainers.ContainerCustomizer {
+	waitStrategy := wait.ForLog(".*The OpenTelemetry collector and the Grafana LGTM stack are up and running.*\\s").
+		AsRegexp().
+		WithOccurrence(1).
+		WithStartupTimeout(timeout)
+	return testcontainers.WithWaitStrategy(waitStrategy)
 }
 
 // LokiEndpoint returns the Loki endpoint

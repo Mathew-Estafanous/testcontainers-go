@@ -61,7 +61,10 @@ func ExampleRun() {
 func ExampleRun_otelCollector() {
 	ctx := context.Background()
 
-	ctr, err := grafanalgtm.Run(ctx, "grafana/otel-lgtm:0.6.0", grafanalgtm.WithAdminCredentials("admin", "123456789"))
+	ctr, err := grafanalgtm.Run(ctx, "grafana/otel-lgtm:0.6.0",
+		grafanalgtm.WithAdminCredentials("admin", "123456789"),
+		grafanalgtm.WithStartupTimeout(2*time.Minute),
+	)
 	defer func() {
 		if err := testcontainers.TerminateContainer(ctr); err != nil {
 			log.Printf("failed to terminate container: %s", err)
